@@ -16,7 +16,7 @@ A lightweight CLI utility for downloading podcasts from RSS feeds. It tracks the
 ### Prerequisites
 
 - Rust 1.70+
-- (Optional) `audio-metadata` for metadata tagging support
+- (Optional) [`audio-metadata`](https://github.com/psschwei/audio-metadata) for metadata tagging support
 
 ### Building
 
