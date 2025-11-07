@@ -134,10 +134,20 @@ If `audio-metadata` is not found, the tool will log a warning and continue witho
 
 To install `audio-metadata`:
 
-```bash
-# Build from source: https://github.com/psschwei/audio-metadata
-# Or use your package manager if available
-```
+1. **Download from GitHub Releases** (Recommended):
+   - Visit [audio-metadata releases](https://github.com/psschwei/audio-metadata/releases)
+   - Download the binary for your platform
+   - Extract and move it to a location in your PATH (e.g., `~/.local/bin/` or `/usr/local/bin/`)
+   - Make it executable: `chmod +x audio-metadata`
+
+2. **Build from source**:
+   ```bash
+   git clone https://github.com/psschwei/audio-metadata
+   cd audio-metadata
+   cargo install --path .
+   ```
+
+3. **Package manager** (if available for your system)
 
 ## Error Handling
 
