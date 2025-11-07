@@ -128,6 +128,7 @@ The state file is created automatically on first successful download and updated
 If `audio-metadata` is installed and available in your PATH, `podcast-getter` will automatically tag downloaded files with:
 
 - **Album**: Podcast name
+- **Artist**: Podcast name
 - **Title**: Episode title
 
 If `audio-metadata` is not found, the tool will log a warning and continue without tagging. This is entirely optional—the downloader works fine without it.
