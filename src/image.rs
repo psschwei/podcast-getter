@@ -44,12 +44,6 @@ pub async fn download_and_convert_image(
 fn sanitize_filename(name: &str) -> String {
     name
         .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
         .collect()
 }

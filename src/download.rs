@@ -36,13 +36,7 @@ pub fn generate_filename(title: &str, extension: &str) -> String {
     // Remove invalid characters and limit length
     let sanitized = title
         .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
         .collect::<String>();
 
     let trimmed = sanitized.trim();
