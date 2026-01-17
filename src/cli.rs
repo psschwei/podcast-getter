@@ -262,3 +262,103 @@ pub async fn update_feed(podcast_name: String) -> Result<()> {
 
     Ok(())
 }
+
+pub fn clean_podcasts() -> Result<()> {
+    let config = Config::load()?;
+
+    if config.podcasts.is_empty() {
+        println!("No podcasts configured.");
+        return Ok(());
+    }
+
+    let mut total_deleted = 0;
+    let mut errors = Vec::new();
+
+    println!("Cleaning MP3 files from configured podcast directories...\n");
+
+    for podcast in &config.podcasts {
+        let output_dir = &podcast.output_dir;
+
+        if !output_dir.exists() {
+            println!("Skipping '{}': directory does not exist", podcast.name);
+            continue;
+        }
+
+        match std::fs::read_dir(output_dir) {
+            Ok(entries) => {
+                let mut podcast_deleted = 0;
+
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let path = entry.path();
+                            if path.is_file() {
+                                if let Some(extension) = path.extension() {
+                                    if extension.to_string_lossy().to_lowercase() == "mp3" {
+                                        match std::fs::remove_file(&path) {
+                                            Ok(_) => {
+                                                podcast_deleted += 1;
+                                                total_deleted += 1;
+                                            }
+                                            Err(e) => {
+                                                let error_msg = format!(
+                                                    "Failed to delete {}: {}",
+                                                    path.display(),
+                                                    e
+                                                );
+                                                tracing::warn!("{}", error_msg);
+                                                errors.push(error_msg);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let error_msg = format!(
+                                "Failed to read entry in {}: {}",
+                                output_dir.display(),
+                                e
+                            );
+                            tracing::warn!("{}", error_msg);
+                            errors.push(error_msg);
+                        }
+                    }
+                }
+
+                if podcast_deleted > 0 {
+                    println!(
+                        "Deleted {} MP3 file{} from '{}'",
+                        podcast_deleted,
+                        if podcast_deleted == 1 { "" } else { "s" },
+                        podcast.name
+                    );
+                }
+            }
+            Err(e) => {
+                let error_msg = format!(
+                    "Failed to read directory for '{}': {}",
+                    podcast.name, e
+                );
+                tracing::error!("{}", error_msg);
+                errors.push(error_msg);
+            }
+        }
+    }
+
+    println!(
+        "\nTotal: deleted {} MP3 file{}",
+        total_deleted,
+        if total_deleted == 1 { "" } else { "s" }
+    );
+
+    // Report errors if any
+    if !errors.is_empty() {
+        println!("\nErrors encountered:");
+        for error in &errors {
+            println!("  - {}", error);
+        }
+    }
+
+    Ok(())
+}

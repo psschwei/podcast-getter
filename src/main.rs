@@ -65,6 +65,10 @@ enum Commands {
     /// Create example config file
     #[command(about = "Generate an example config file")]
     InitConfig,
+
+    /// Remove all downloaded MP3 files while keeping cover art
+    #[command(about = "Remove all downloaded MP3 files from configured podcasts")]
+    Clean,
 }
 
 #[tokio::main]
@@ -103,6 +107,9 @@ async fn main() -> Result<()> {
         }
         Commands::InitConfig => {
             config::Config::create_example()?;
+        }
+        Commands::Clean => {
+            cli::clean_podcasts()?;
         }
     }
 

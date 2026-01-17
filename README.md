@@ -106,6 +106,16 @@ Download new episodes from a specific podcast:
 podcast-getter update-feed "Podcast Name"
 ```
 
+### Clean Downloaded Files
+
+Remove all downloaded MP3 files while keeping cover art:
+
+```bash
+podcast-getter clean
+```
+
+This will delete all `.mp3` files from configured podcast directories while preserving cover art images and other files.
+
 ### Debug Logging
 
 Enable debug logging for troubleshooting:
