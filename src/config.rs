@@ -15,6 +15,8 @@ pub struct PodcastConfig {
     pub output_dir: PathBuf,
     #[serde(default)]
     pub max_episodes: Option<usize>,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 impl Config {
@@ -84,6 +86,7 @@ impl Config {
                     .context("Could not determine download directory")?
                     .join("podcasts"),
                 max_episodes: None,
+                paused: false,
             }],
         };
 

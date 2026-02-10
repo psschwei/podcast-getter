@@ -18,6 +18,10 @@ pub async fn download_all_podcasts(max_episodes: Option<usize>) -> Result<()> {
     let mut errors = Vec::new();
 
     for podcast in config.podcasts {
+        if podcast.paused {
+            info!("Skipping '{}' (paused)", podcast.name);
+            continue;
+        }
         match download_podcast(&podcast, &mut state, max_episodes).await {
             Ok(count) => {
                 info!("Downloaded {} new episodes from {}", count, podcast.name);
@@ -172,6 +176,7 @@ pub fn add_podcast(url: String, name: Option<String>, output_dir: Option<PathBuf
         url,
         output_dir: output,
         max_episodes: None,
+        paused: false,
     });
 
     config.save()?;
@@ -192,7 +197,8 @@ pub fn list_podcasts() -> Result<()> {
     println!("Configured podcasts:\n");
 
     for podcast in &config.podcasts {
-        println!("Name: {}", podcast.name);
+        let paused_indicator = if podcast.paused { " (paused)" } else { "" };
+        println!("Name: {}{}", podcast.name, paused_indicator);
         println!("URL: {}", podcast.url);
         println!("Output: {}", podcast.output_dir.display());
 
@@ -220,16 +226,18 @@ pub fn show_status() -> Result<()> {
     println!("Podcast Status:\n");
 
     for podcast in &config.podcasts {
+        let paused_indicator = if podcast.paused { " (paused)" } else { "" };
         match state.get_last_check(&podcast.name) {
             Some(last_check) => {
                 println!(
-                    "{}: last checked {}",
+                    "{}{}: last checked {}",
                     podcast.name,
+                    paused_indicator,
                     last_check.format("%Y-%m-%d %H:%M:%S UTC")
                 );
             }
             None => {
-                println!("{}: never checked", podcast.name);
+                println!("{}{}: never checked", podcast.name, paused_indicator);
             }
         }
     }
@@ -247,6 +255,10 @@ pub async fn update_feed(podcast_name: String) -> Result<()> {
         .ok_or_else(|| {
             anyhow::anyhow!("Podcast '{}' not found in config", podcast_name)
         })?;
+
+    if podcast.paused {
+        tracing::warn!("Podcast '{}' is paused, but updating anyway since it was explicitly requested", podcast.name);
+    }
 
     let mut state = State::load()?;
 
@@ -357,6 +369,80 @@ pub fn clean_podcasts() -> Result<()> {
         println!("\nErrors encountered:");
         for error in &errors {
             println!("  - {}", error);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn pause_podcast(name: Option<String>, all: bool) -> Result<()> {
+    if !all && name.is_none() {
+        anyhow::bail!("Either provide a podcast name or use --all");
+    }
+
+    let mut config = Config::load()?;
+
+    if all {
+        let mut count = 0;
+        for podcast in &mut config.podcasts {
+            if !podcast.paused {
+                podcast.paused = true;
+                count += 1;
+            }
+        }
+        config.save()?;
+        println!("Paused {} podcast{}", count, if count == 1 { "" } else { "s" });
+    } else {
+        let name = name.unwrap();
+        let podcast = config
+            .podcasts
+            .iter_mut()
+            .find(|p| p.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Podcast '{}' not found in config", name))?;
+
+        if podcast.paused {
+            println!("Podcast '{}' is already paused", name);
+        } else {
+            podcast.paused = true;
+            config.save()?;
+            println!("Paused '{}'", name);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn unpause_podcast(name: Option<String>, all: bool) -> Result<()> {
+    if !all && name.is_none() {
+        anyhow::bail!("Either provide a podcast name or use --all");
+    }
+
+    let mut config = Config::load()?;
+
+    if all {
+        let mut count = 0;
+        for podcast in &mut config.podcasts {
+            if podcast.paused {
+                podcast.paused = false;
+                count += 1;
+            }
+        }
+        config.save()?;
+        println!("Unpaused {} podcast{}", count, if count == 1 { "" } else { "s" });
+    } else {
+        let name = name.unwrap();
+        let podcast = config
+            .podcasts
+            .iter_mut()
+            .find(|p| p.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Podcast '{}' not found in config", name))?;
+
+        if !podcast.paused {
+            println!("Podcast '{}' is not paused", name);
+        } else {
+            podcast.paused = false;
+            config.save()?;
+            println!("Unpaused '{}'", name);
         }
     }
 

@@ -69,6 +69,28 @@ enum Commands {
     /// Remove all downloaded MP3 files while keeping cover art
     #[command(about = "Remove all downloaded MP3 files from configured podcasts")]
     Clean,
+
+    /// Pause a podcast so it is skipped during download
+    Pause {
+        /// Name of the podcast to pause
+        #[arg(value_name = "NAME")]
+        name: Option<String>,
+
+        /// Pause all podcasts
+        #[arg(long)]
+        all: bool,
+    },
+
+    /// Unpause a podcast so it resumes downloading
+    Unpause {
+        /// Name of the podcast to unpause
+        #[arg(value_name = "NAME")]
+        name: Option<String>,
+
+        /// Unpause all podcasts
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 #[tokio::main]
@@ -110,6 +132,12 @@ async fn main() -> Result<()> {
         }
         Commands::Clean => {
             cli::clean_podcasts()?;
+        }
+        Commands::Pause { name, all } => {
+            cli::pause_podcast(name, all)?;
+        }
+        Commands::Unpause { name, all } => {
+            cli::unpause_podcast(name, all)?;
         }
     }
 
