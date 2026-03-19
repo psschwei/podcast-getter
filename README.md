@@ -22,7 +22,7 @@ A lightweight CLI utility for downloading podcasts from RSS feeds. It tracks the
 
 ```bash
 cargo build --release
-# Binary will be at: target/release/podcast-getter
+# Binary will be at: target/release/pg
 ```
 
 Optionally, install it to your system:
@@ -38,7 +38,7 @@ cargo install --path .
 First, generate a config template:
 
 ```bash
-podcast-getter init-config
+pg init-config
 ```
 
 This creates `/home/paul/.config/podcast-getter/config.toml.example` as a template.
@@ -71,7 +71,7 @@ Each podcast needs:
 Download new episodes from all configured podcasts:
 
 ```bash
-podcast-getter download
+pg download
 ```
 
 ### Add a Podcast
@@ -79,7 +79,7 @@ podcast-getter download
 Add a new podcast to your config:
 
 ```bash
-podcast-getter add <FEED_URL> --name "Podcast Name" --output-dir /path/to/directory
+pg add <FEED_URL> --name "Podcast Name" --output-dir /path/to/directory
 ```
 
 ### List Configured Podcasts
@@ -87,7 +87,7 @@ podcast-getter add <FEED_URL> --name "Podcast Name" --output-dir /path/to/direct
 Show all configured podcasts and their settings:
 
 ```bash
-podcast-getter list
+pg list
 ```
 
 ### Show Status
@@ -95,7 +95,7 @@ podcast-getter list
 Display last-check timestamps for all podcasts:
 
 ```bash
-podcast-getter status
+pg status
 ```
 
 ### Update Specific Feed
@@ -103,7 +103,7 @@ podcast-getter status
 Download new episodes from a specific podcast:
 
 ```bash
-podcast-getter update-feed "Podcast Name"
+pg update-feed "Podcast Name"
 ```
 
 ### Clean Downloaded Files
@@ -111,7 +111,7 @@ podcast-getter update-feed "Podcast Name"
 Remove all downloaded MP3 files while keeping cover art:
 
 ```bash
-podcast-getter clean
+pg clean
 ```
 
 This will delete all `.mp3` files from configured podcast directories while preserving cover art images and other files.
@@ -121,7 +121,7 @@ This will delete all `.mp3` files from configured podcast directories while pres
 Enable debug logging for troubleshooting:
 
 ```bash
-podcast-getter --debug download
+pg --debug download
 ```
 
 ## State Management
@@ -135,13 +135,13 @@ The state file is created automatically on first successful download and updated
 
 ## Metadata Tagging (Optional)
 
-If `audio-metadata` is installed and available in your PATH, `podcast-getter` will automatically tag downloaded files with:
+If `audio-metadata` is installed and available in your PATH, `pg` will automatically tag downloaded files with:
 
 - **Album**: Podcast name
 - **Artist**: Podcast name
 - **Title**: Episode title
 
-If `audio-metadata` is not found, the tool will log a warning and continue without tagging. This is entirely optional—the downloader works fine without it.
+If `audio-metadata` is not found, `pg` will log a warning and continue without tagging. This is entirely optional—the downloader works fine without it.
 
 To install `audio-metadata`:
 
