@@ -94,9 +94,9 @@ async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episod
     let mut downloaded = 0;
     for episode in new_episodes {
         match download_episode(&podcast, &episode).await {
-            Ok(file_path) => {
+            Ok((file_path, prefixed_title)) => {
                 // Try to tag the file with cover art if available
-                if let Err(e) = tagger::tag_audio_file(&file_path, &podcast.name, &episode.title, cover_art_path.as_deref())
+                if let Err(e) = tagger::tag_audio_file(&file_path, &podcast.name, &prefixed_title, cover_art_path.as_deref())
                 {
                     tracing::warn!("Failed to tag file {}: {}", file_path.display(), e);
                 }
@@ -118,12 +118,16 @@ async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episod
     Ok(downloaded)
 }
 
-async fn download_episode(podcast: &PodcastConfig, episode: &feed::Episode) -> Result<PathBuf> {
+async fn download_episode(podcast: &PodcastConfig, episode: &feed::Episode) -> Result<(PathBuf, String)> {
     // Extract file extension from URL
     let extension = extract_extension(&episode.url).unwrap_or("mp3");
 
+    // Prefix title with publication date for chronological sorting
+    let date_prefix = episode.pub_date.format("%Y-%m-%d");
+    let prefixed_title = format!("{} {}", date_prefix, episode.title);
+
     // Generate filename
-    let filename = download::generate_filename(&episode.title, extension);
+    let filename = download::generate_filename(&prefixed_title, extension);
     let file_path = podcast.output_dir.join(&filename);
 
     info!(
@@ -134,7 +138,7 @@ async fn download_episode(podcast: &PodcastConfig, episode: &feed::Episode) -> R
 
     download::download_file(&episode.url, &file_path).await?;
 
-    Ok(file_path)
+    Ok((file_path, prefixed_title))
 }
 
 fn extract_extension(url: &str) -> Option<&str> {
