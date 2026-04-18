@@ -4,7 +4,7 @@ use crate::feed;
 use crate::image;
 use crate::state::State;
 use crate::tagger;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::Utc;
 use std::path::PathBuf;
 use tracing::info;
@@ -378,6 +378,142 @@ pub fn clean_podcasts() -> Result<()> {
 
     Ok(())
 }
+
+pub fn print_podcast_names() -> Result<()> {
+    let config = Config::load().unwrap_or(Config { podcasts: vec![] });
+    for podcast in &config.podcasts {
+        println!("{}", podcast.name);
+    }
+    Ok(())
+}
+
+pub fn print_completions(shell: &str) -> Result<()> {
+    match shell {
+        "bash" => print!("{}", BASH_COMPLETION),
+        "zsh" => print!("{}", ZSH_COMPLETION),
+        "fish" => print!("{}", FISH_COMPLETION),
+        other => bail!("Unsupported shell: {}. Supported: bash, zsh, fish", other),
+    }
+    Ok(())
+}
+
+const BASH_COMPLETION: &str = r#"_pg() {
+    local cur prev words cword
+    _init_completion || return
+
+    local subcommands="download add list status update-feed init-config clean pause unpause completions"
+
+    if [[ $cword -eq 1 ]]; then
+        COMPREPLY=($(compgen -W "$subcommands" -- "$cur"))
+        return
+    fi
+
+    case "${words[1]}" in
+        update-feed|pause|unpause)
+            local names
+            names=$(pg names 2>/dev/null)
+            COMPREPLY=($(compgen -W "$names" -- "$cur"))
+            ;;
+        download)
+            case "$prev" in
+                -m|--max-episodes) return ;;
+            esac
+            COMPREPLY=($(compgen -W "--max-episodes -m --debug -d" -- "$cur"))
+            ;;
+        add)
+            case "$prev" in
+                -n|--name|-o|--output-dir) return ;;
+            esac
+            COMPREPLY=($(compgen -W "--name -n --output-dir -o --debug -d" -- "$cur"))
+            ;;
+        completions)
+            COMPREPLY=($(compgen -W "bash zsh fish" -- "$cur"))
+            ;;
+    esac
+}
+
+complete -F _pg pg
+"#;
+
+const ZSH_COMPLETION: &str = r#"#compdef pg
+
+_pg() {
+    local state
+
+    _arguments \
+        '(-d --debug)'{-d,--debug}'[Enable debug logging]' \
+        ':command:->command' \
+        '*::args:->args'
+
+    case $state in
+        command)
+            local commands=(
+                'download:Download new episodes from all configured podcasts'
+                'add:Add a new podcast to the config'
+                'list:List all configured podcasts'
+                'status:Show last-check timestamps for all podcasts'
+                'update-feed:Check and download new episodes from a specific podcast'
+                'init-config:Generate an example config file'
+                'clean:Remove all downloaded MP3 files from configured podcasts'
+                'pause:Pause a podcast so it is skipped during download'
+                'unpause:Unpause a podcast so it resumes downloading'
+                'completions:Generate shell completion scripts'
+            )
+            _describe 'command' commands
+            ;;
+        args)
+            case $words[1] in
+                update-feed|pause|unpause)
+                    local names=(${(f)"$(pg names 2>/dev/null)"})
+                    _describe 'podcast' names
+                    ;;
+                completions)
+                    local shells=('bash' 'zsh' 'fish')
+                    _describe 'shell' shells
+                    ;;
+                download)
+                    _arguments \
+                        '(-m --max-episodes)'{-m,--max-episodes}'[Maximum episodes per podcast]:count'
+                    ;;
+                add)
+                    _arguments \
+                        '(-n --name)'{-n,--name}'[Name for the podcast]:name' \
+                        '(-o --output-dir)'{-o,--output-dir}'[Output directory]:directory:_files -/'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_pg
+"#;
+
+const FISH_COMPLETION: &str = r#"function __pg_podcast_names
+    pg names 2>/dev/null
+end
+
+complete -c pg -f
+
+complete -c pg -n '__fish_use_subcommand' -a download -d 'Download new episodes from all configured podcasts'
+complete -c pg -n '__fish_use_subcommand' -a add -d 'Add a new podcast to the config'
+complete -c pg -n '__fish_use_subcommand' -a list -d 'List all configured podcasts'
+complete -c pg -n '__fish_use_subcommand' -a status -d 'Show last-check timestamps for all podcasts'
+complete -c pg -n '__fish_use_subcommand' -a update-feed -d 'Check and download new episodes from a specific podcast'
+complete -c pg -n '__fish_use_subcommand' -a init-config -d 'Generate an example config file'
+complete -c pg -n '__fish_use_subcommand' -a clean -d 'Remove all downloaded MP3 files from configured podcasts'
+complete -c pg -n '__fish_use_subcommand' -a pause -d 'Pause a podcast so it is skipped during download'
+complete -c pg -n '__fish_use_subcommand' -a unpause -d 'Unpause a podcast so it resumes downloading'
+complete -c pg -n '__fish_use_subcommand' -a completions -d 'Generate shell completion scripts'
+
+complete -c pg -n '__fish_seen_subcommand_from update-feed pause unpause' -a '(__pg_podcast_names)'
+complete -c pg -n '__fish_seen_subcommand_from completions' -a 'bash zsh fish'
+
+complete -c pg -s d -l debug -d 'Enable debug logging'
+complete -c pg -n '__fish_seen_subcommand_from download' -s m -l max-episodes -d 'Maximum episodes per podcast' -r
+complete -c pg -n '__fish_seen_subcommand_from add' -s n -l name -d 'Name for the podcast' -r
+complete -c pg -n '__fish_seen_subcommand_from add' -s o -l output-dir -d 'Output directory' -r
+complete -c pg -n '__fish_seen_subcommand_from pause unpause' -l all -d 'Apply to all podcasts'
+"#;
 
 pub fn pause_podcast(name: Option<String>, all: bool) -> Result<()> {
     if !all && name.is_none() {

@@ -91,6 +91,17 @@ enum Commands {
         #[arg(long)]
         all: bool,
     },
+
+    /// Generate shell completion scripts
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_name = "SHELL")]
+        shell: String,
+    },
+
+    /// Print podcast names (for shell completion)
+    #[command(hide = true)]
+    Names,
 }
 
 #[tokio::main]
@@ -138,6 +149,12 @@ async fn main() -> Result<()> {
         }
         Commands::Unpause { name, all } => {
             cli::unpause_podcast(name, all)?;
+        }
+        Commands::Completions { shell } => {
+            cli::print_completions(&shell)?;
+        }
+        Commands::Names => {
+            cli::print_podcast_names()?;
         }
     }
 
