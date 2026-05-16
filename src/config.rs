@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub base_dir: Option<PathBuf>,
     pub podcasts: Vec<PodcastConfig>,
 }
 
@@ -12,11 +14,41 @@ pub struct Config {
 pub struct PodcastConfig {
     pub name: String,
     pub url: String,
-    pub output_dir: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dir: Option<PathBuf>,
     #[serde(default)]
     pub max_episodes: Option<usize>,
     #[serde(default)]
     pub paused: bool,
+}
+
+impl PodcastConfig {
+    /// Resolve the directory this podcast should be downloaded into.
+    ///
+    /// Uses the per-podcast `output_dir` if set, otherwise falls back to
+    /// `<base_dir>/<sanitized name>`. Errors if neither is available.
+    pub fn resolved_output_dir(&self, base_dir: Option<&Path>) -> Result<PathBuf> {
+        if let Some(dir) = &self.output_dir {
+            return Ok(dir.clone());
+        }
+        let base = base_dir.ok_or_else(|| {
+            anyhow::anyhow!(
+                "No output directory for podcast '{}': set `base_dir` at the top of config.toml, \
+                 or give this podcast its own `output_dir`.",
+                self.name
+            )
+        })?;
+        Ok(base.join(sanitize_dir_name(&self.name)))
+    }
+}
+
+/// Sanitize a podcast name into a safe directory component.
+fn sanitize_dir_name(name: &str) -> String {
+    let sanitized: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
+        .collect();
+    sanitized.trim().to_string()
 }
 
 impl Config {
@@ -79,12 +111,15 @@ impl Config {
             .context("Failed to create config directory")?;
 
         let example_config = Config {
+            base_dir: Some(
+                dirs::download_dir()
+                    .context("Could not determine download directory")?
+                    .join("podcasts"),
+            ),
             podcasts: vec![PodcastConfig {
                 name: "Example Podcast".to_string(),
                 url: "https://example.com/feed.xml".to_string(),
-                output_dir: dirs::download_dir()
-                    .context("Could not determine download directory")?
-                    .join("podcasts"),
+                output_dir: None,
                 max_episodes: None,
                 paused: false,
             }],

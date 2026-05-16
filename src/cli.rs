@@ -13,6 +13,7 @@ pub async fn download_all_podcasts(max_episodes: Option<usize>) -> Result<()> {
     info!("Starting podcast download");
 
     let config = Config::load()?;
+    let base_dir = config.base_dir.clone();
     let mut state = State::load()?;
 
     let mut errors = Vec::new();
@@ -22,7 +23,7 @@ pub async fn download_all_podcasts(max_episodes: Option<usize>) -> Result<()> {
             info!("Skipping '{}' (paused)", podcast.name);
             continue;
         }
-        match download_podcast(&podcast, &mut state, max_episodes).await {
+        match download_podcast(&podcast, base_dir.as_deref(), &mut state, max_episodes).await {
             Ok(count) => {
                 info!("Downloaded {} new episodes from {}", count, podcast.name);
             }
@@ -49,8 +50,14 @@ pub async fn download_all_podcasts(max_episodes: Option<usize>) -> Result<()> {
     Ok(())
 }
 
-async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episodes: Option<usize>) -> Result<usize> {
+async fn download_podcast(
+    podcast: &PodcastConfig,
+    base_dir: Option<&std::path::Path>,
+    state: &mut State,
+    max_episodes: Option<usize>,
+) -> Result<usize> {
     let last_check = state.get_last_check(&podcast.name);
+    let output_dir = podcast.resolved_output_dir(base_dir)?;
 
     // Fetch and parse feed
     let (episodes, image_url) = feed::fetch_feed(&podcast.url).await?;
@@ -58,7 +65,7 @@ async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episod
     // Download and cache the cover art if available
     let cover_art_path = match image_url {
         Some(url) => {
-            match image::download_and_convert_image(&url, &podcast.output_dir, &podcast.name).await {
+            match image::download_and_convert_image(&url, &output_dir, &podcast.name).await {
                 Ok(path) => {
                     info!("Downloaded cover art for '{}'", podcast.name);
                     Some(path)
@@ -93,7 +100,7 @@ async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episod
 
     let mut downloaded = 0;
     for episode in new_episodes {
-        match download_episode(&podcast, &episode).await {
+        match download_episode(&output_dir, &episode).await {
             Ok((file_path, prefixed_title)) => {
                 // Try to tag the file with cover art if available
                 if let Err(e) = tagger::tag_audio_file(&file_path, &podcast.name, &prefixed_title, cover_art_path.as_deref())
@@ -118,7 +125,7 @@ async fn download_podcast(podcast: &PodcastConfig, state: &mut State, max_episod
     Ok(downloaded)
 }
 
-async fn download_episode(podcast: &PodcastConfig, episode: &feed::Episode) -> Result<(PathBuf, String)> {
+async fn download_episode(output_dir: &std::path::Path, episode: &feed::Episode) -> Result<(PathBuf, String)> {
     // Extract file extension from URL
     let extension = extract_extension(&episode.url).unwrap_or("mp3");
 
@@ -128,7 +135,7 @@ async fn download_episode(podcast: &PodcastConfig, episode: &feed::Episode) -> R
 
     // Generate filename
     let filename = download::generate_filename(&prefixed_title, extension);
-    let file_path = podcast.output_dir.join(&filename);
+    let file_path = output_dir.join(&filename);
 
     info!(
         "Downloading '{}' to {}",
@@ -159,7 +166,10 @@ fn extract_extension(url: &str) -> Option<&str> {
 }
 
 pub fn add_podcast(url: String, name: Option<String>, output_dir: Option<PathBuf>) -> Result<()> {
-    let mut config = Config::load().unwrap_or(Config { podcasts: vec![] });
+    let mut config = Config::load().unwrap_or(Config {
+        base_dir: None,
+        podcasts: vec![],
+    });
 
     let podcast_name = name.unwrap_or_else(|| {
         // Try to extract name from URL
@@ -169,16 +179,10 @@ pub fn add_podcast(url: String, name: Option<String>, output_dir: Option<PathBuf
             .to_string()
     });
 
-    let output = output_dir.unwrap_or_else(|| {
-        dirs::download_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("podcasts")
-    });
-
     config.podcasts.push(PodcastConfig {
         name: podcast_name.clone(),
         url,
-        output_dir: output,
+        output_dir,
         max_episodes: None,
         paused: false,
     });
@@ -204,7 +208,10 @@ pub fn list_podcasts() -> Result<()> {
         let paused_indicator = if podcast.paused { " (paused)" } else { "" };
         println!("Name: {}{}", podcast.name, paused_indicator);
         println!("URL: {}", podcast.url);
-        println!("Output: {}", podcast.output_dir.display());
+        match podcast.resolved_output_dir(config.base_dir.as_deref()) {
+            Ok(dir) => println!("Output: {}", dir.display()),
+            Err(e) => println!("Output: <unresolved: {}>", e),
+        }
 
         if let Some(last_check) = state.get_last_check(&podcast.name) {
             println!("Last checked: {}", last_check.format("%Y-%m-%d %H:%M:%S UTC"));
@@ -266,7 +273,7 @@ pub async fn update_feed(podcast_name: String) -> Result<()> {
 
     let mut state = State::load()?;
 
-    match download_podcast(podcast, &mut state, None).await {
+    match download_podcast(podcast, config.base_dir.as_deref(), &mut state, None).await {
         Ok(count) => {
             info!("Downloaded {} new episodes from {}", count, podcast.name);
             state.save()?;
@@ -293,14 +300,20 @@ pub fn clean_podcasts() -> Result<()> {
     println!("Cleaning MP3 files from configured podcast directories...\n");
 
     for podcast in &config.podcasts {
-        let output_dir = &podcast.output_dir;
+        let output_dir = match podcast.resolved_output_dir(config.base_dir.as_deref()) {
+            Ok(dir) => dir,
+            Err(e) => {
+                println!("Skipping '{}': {}", podcast.name, e);
+                continue;
+            }
+        };
 
         if !output_dir.exists() {
             println!("Skipping '{}': directory does not exist", podcast.name);
             continue;
         }
 
-        match std::fs::read_dir(output_dir) {
+        match std::fs::read_dir(&output_dir) {
             Ok(entries) => {
                 let mut podcast_deleted = 0;
 
@@ -380,7 +393,10 @@ pub fn clean_podcasts() -> Result<()> {
 }
 
 pub fn print_podcast_names() -> Result<()> {
-    let config = Config::load().unwrap_or(Config { podcasts: vec![] });
+    let config = Config::load().unwrap_or(Config {
+        base_dir: None,
+        podcasts: vec![],
+    });
     for podcast in &config.podcasts {
         println!("{}", podcast.name);
     }

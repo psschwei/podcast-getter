@@ -48,21 +48,25 @@ This creates `/home/paul/.config/podcast-getter/config.toml.example` as a templa
 Create or edit `~/.config/podcast-getter/config.toml`:
 
 ```toml
+base_dir = "/home/paul/Downloads/podcasts"
+
 [[podcasts]]
 name = "Changelog"
 url = "https://changelog.com/podcast/feed"
-output_dir = "/home/paul/Downloads/podcasts/changelog"
 
 [[podcasts]]
 name = "CoRecursive"
 url = "https://corecursive.com/feed/"
-output_dir = "/home/paul/Downloads/podcasts/corecursive"
+output_dir = "/home/paul/elsewhere/corecursive"  # optional per-podcast override
 ```
+
+Top-level:
+- **base_dir**: Parent directory where each podcast gets its own subdirectory (named after the podcast, with non-alphanumerics stripped).
 
 Each podcast needs:
 - **name**: Display name for the podcast
 - **url**: URL to the RSS feed
-- **output_dir**: Directory where episodes will be saved
+- **output_dir** (optional): Override the directory for this podcast. If omitted, the podcast is saved to `<base_dir>/<name>`. If both `base_dir` and `output_dir` are unset, the podcast will be skipped with an error.
 
 ## Usage
 
@@ -79,8 +83,10 @@ pg download
 Add a new podcast to your config:
 
 ```bash
-pg add <FEED_URL> --name "Podcast Name" --output-dir /path/to/directory
+pg add <FEED_URL> --name "Podcast Name"
 ```
+
+The podcast will use the top-level `base_dir`. Pass `--output-dir /path/to/directory` if you want to override that for this entry.
 
 ### List Configured Podcasts
 
